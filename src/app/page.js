@@ -99,19 +99,30 @@ export default function EmployeePage() {
 
   // Load orders on mount + subscribe to changes
   useEffect(() => {
-    setOrders(getOrders());
-    const unsub = subscribeToChanges((updatedOrders) => {
-      setOrders(updatedOrders);
+    let active = true;
+    getOrders().then(data => {
+      if (active) setOrders(data || []);
     });
-    return unsub;
+    const unsub = subscribeToChanges((updatedOrders) => {
+      if (active) setOrders(updatedOrders || []);
+    });
+    return () => {
+      active = false;
+      unsub();
+    };
   }, []);
 
   // Auto-refresh every 5 seconds (for cross-tab awareness)
   useEffect(() => {
-    const interval = setInterval(() => {
-      setOrders(getOrders());
+    let active = true;
+    const interval = setInterval(async () => {
+      const data = await getOrders();
+      if (active) setOrders(data || []);
     }, 5000);
-    return () => clearInterval(interval);
+    return () => {
+      active = false;
+      clearInterval(interval);
+    };
   }, []);
 
   // Restore name & department from last submission

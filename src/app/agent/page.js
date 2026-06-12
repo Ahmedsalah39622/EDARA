@@ -31,11 +31,17 @@ export default function AgentPage() {
 
   // Load orders and subscribe to changes
   useEffect(() => {
-    setOrders(getOrders());
-    const unsubscribe = subscribeToChanges((updated) => {
-      setOrders(updated);
+    let active = true;
+    getOrders().then(data => {
+      if (active) setOrders(data || []);
     });
-    return unsubscribe;
+    const unsubscribe = subscribeToChanges((updated) => {
+      if (active) setOrders(updated || []);
+    });
+    return () => {
+      active = false;
+      unsubscribe();
+    };
   }, []);
 
   // Toast helper
