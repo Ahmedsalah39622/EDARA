@@ -1,38 +1,33 @@
 /**
- * Order Management System - localStorage based
+ * Order Management System - MySQL API Backend Connection with Polling
  * 
  * Order statuses: pending → accepted → paid → delivered
- * Cross-tab sync via 'storage' event
  */
 
-const STORAGE_KEY = 'mandoob_orders';
+// Local cache to check changes
+let ordersCache = [];
 
 // Generate a unique ID
 function generateId() {
   return Date.now().toString(36) + '-' + Math.random().toString(36).substring(2, 9);
 }
 
-// Get all orders from localStorage
-export function getOrders() {
-  if (typeof window === 'undefined') return [];
+// Fetch all orders from backend database
+export async function getOrders() {
   try {
-    const data = localStorage.getItem(STORAGE_KEY);
-    return data ? JSON.parse(data) : [];
-  } catch {
-    return [];
+    const res = await fetch('/api/orders', { cache: 'no-store' });
+    if (!res.ok) throw new Error('Failed to fetch');
+    const data = await res.json();
+    ordersCache = data;
+    return data;
+  } catch (error) {
+    console.error('Error in getOrders:', error);
+    return ordersCache; // fallback to cache
   }
 }
 
-// Save orders to localStorage
-function saveOrders(orders) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(orders));
-  // Dispatch a custom event for same-tab updates
-  window.dispatchEvent(new CustomEvent('orders-updated', { detail: orders }));
-}
-
 // Add a new order
-export function addOrder({ employeeName, department, description, totalPrice, amountPaying, notes }) {
-  const orders = getOrders();
+export async function addOrder({ employeeName, department, description, totalPrice, amountPaying, notes }) {
   const newOrder = {
     id: generateId(),
     employeeName,
@@ -43,81 +38,112 @@ export function addOrder({ employeeName, department, description, totalPrice, am
     notes: notes || '',
     status: 'pending',
     agentName: null,
-    createdAt: new Date().toISOString(),
-    acceptedAt: null,
-    paidAt: null,
-    deliveredAt: null,
   };
-  orders.unshift(newOrder);
-  saveOrders(orders);
+
+  const res = await fetch('/api/orders', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(newOrder),
+  });
+
+  if (!res.ok) {
+    const errData = await res.json();
+    throw new Error(errData.error || 'Failed to add order');
+  }
+
+  // Trigger local callbacks instantly
+  const updatedOrders = [newOrder, ...ordersCache];
+  ordersCache = updatedOrders;
+  window.dispatchEvent(new CustomEvent('orders-updated', { detail: updatedOrders }));
+
   return newOrder;
 }
 
 // Agent accepts an order
-export function acceptOrder(orderId, agentName) {
-  const orders = getOrders();
-  const order = orders.find(o => o.id === orderId);
-  if (!order) throw new Error('الطلب غير موجود');
-  if (order.status !== 'pending') throw new Error('الطلب تم قبوله بالفعل');
-  order.status = 'accepted';
-  order.agentName = agentName;
-  order.acceptedAt = new Date().toISOString();
-  saveOrders(orders);
-  return order;
+export async function acceptOrder(orderId, agentName) {
+  const res = await fetch('/api/orders/status', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ orderId, action: 'accept', agentName }),
+  });
+
+  if (!res.ok) {
+    const errData = await res.json();
+    throw new Error(errData.error || 'Failed to accept order');
+  }
+
+  // Fetch latest immediately
+  return await getOrders();
 }
 
 // Agent confirms payment received
-export function confirmPayment(orderId) {
-  const orders = getOrders();
-  const order = orders.find(o => o.id === orderId);
-  if (!order) throw new Error('الطلب غير موجود');
-  if (order.status !== 'accepted') throw new Error('لازم تقبل الطلب الأول');
-  order.status = 'paid';
-  order.paidAt = new Date().toISOString();
-  saveOrders(orders);
-  return order;
+export async function confirmPayment(orderId) {
+  const res = await fetch('/api/orders/status', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ orderId, action: 'confirmPayment' }),
+  });
+
+  if (!res.ok) {
+    const errData = await res.json();
+    throw new Error(errData.error || 'Failed to confirm payment');
+  }
+
+  return await getOrders();
 }
 
 // Agent confirms delivery
-export function confirmDelivery(orderId) {
-  const orders = getOrders();
-  const order = orders.find(o => o.id === orderId);
-  if (!order) throw new Error('الطلب غير موجود');
-  if (order.status !== 'paid') throw new Error('لازم تستلم الفلوس الأول');
-  order.status = 'delivered';
-  order.deliveredAt = new Date().toISOString();
-  saveOrders(orders);
-  return order;
+export async function confirmDelivery(orderId) {
+  const res = await fetch('/api/orders/status', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ orderId, action: 'confirmDelivery' }),
+  });
+
+  if (!res.ok) {
+    const errData = await res.json();
+    throw new Error(errData.error || 'Failed to confirm delivery');
+  }
+
+  return await getOrders();
 }
 
 // Delete an order (only pending)
-export function deleteOrder(orderId) {
-  const orders = getOrders();
-  const index = orders.findIndex(o => o.id === orderId);
-  if (index === -1) throw new Error('الطلب غير موجود');
-  if (orders[index].status !== 'pending') throw new Error('مينفعش تحذف طلب تم قبوله');
-  orders.splice(index, 1);
-  saveOrders(orders);
+export async function deleteOrder(orderId) {
+  const res = await fetch('/api/orders/status', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ orderId, action: 'delete' }),
+  });
+
+  if (!res.ok) {
+    const errData = await res.json();
+    throw new Error(errData.error || 'Failed to delete order');
+  }
+
+  return await getOrders();
 }
 
-// Subscribe to order changes (cross-tab + same-tab)
+// Subscribe to order changes (calls DB every 3 seconds to keep sync across all mobile devices)
 export function subscribeToChanges(callback) {
-  // Listen for changes from OTHER tabs
-  const handleStorage = (e) => {
-    if (e.key === STORAGE_KEY) {
-      callback(getOrders());
-    }
-  };
-  // Listen for changes from THIS tab
+  // Initial load
+  getOrders().then(callback);
+
+  // Poll server for updates
+  const intervalId = setInterval(async () => {
+    const latestOrders = await getOrders();
+    callback(latestOrders);
+  }, 3000);
+
+  // Still support custom local events for instant UI feedback
   const handleCustom = (e) => {
     callback(e.detail);
   };
 
-  window.addEventListener('storage', handleStorage);
   window.addEventListener('orders-updated', handleCustom);
 
   return () => {
-    window.removeEventListener('storage', handleStorage);
+    clearInterval(intervalId);
     window.removeEventListener('orders-updated', handleCustom);
   };
 }
@@ -146,6 +172,7 @@ export const DEPARTMENTS = [
 
 // Format time ago in Arabic
 export function timeAgo(dateString) {
+  if (!dateString) return '';
   const now = new Date();
   const date = new Date(dateString);
   const diffMs = now - date;
