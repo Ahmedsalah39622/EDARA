@@ -222,9 +222,6 @@ export default function EmployeePage() {
         <span className="header__icon">🍔</span>
         <h1 className="header__title">سيستم الطلبات</h1>
         <p className="header__subtitle">اطلب فطارك وأوردراتك بسهولة — وتابع حالة طلبك لحظة بلحظة</p>
-        <Link href="/agent" className="header__nav-link">
-          🏍️ دخول كمندوب
-        </Link>
       </header>
 
       {/* Order Form */}
