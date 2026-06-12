@@ -11,7 +11,7 @@ export async function POST(request) {
     }
 
     // First fetch current order to validate transition
-    const [rows] = await pool.query('SELECT * FROM `orders` WHERE `id` = ?', [orderId]);
+    const { rows } = await pool.query('SELECT * FROM orders WHERE id = $1', [orderId]);
     if (rows.length === 0) {
       return NextResponse.json({ error: 'Order not found' }, { status: 404 });
     }
@@ -24,25 +24,25 @@ export async function POST(request) {
       if (order.status !== 'pending') {
         return NextResponse.json({ error: 'الطلب تم قبوله بالفعل' }, { status: 400 });
       }
-      query = 'UPDATE `orders` SET `status` = ?, `agentName` = ?, `acceptedAt` = NOW() WHERE `id` = ?';
+      query = 'UPDATE orders SET status = $1, agentName = $2, acceptedAt = NOW() WHERE id = $3';
       params = ['accepted', agentName, orderId];
     } else if (action === 'confirmPayment') {
       if (order.status !== 'accepted') {
         return NextResponse.json({ error: 'يجب قبول الطلب أولاً' }, { status: 400 });
       }
-      query = 'UPDATE `orders` SET `status` = ?, `paidAt` = NOW() WHERE `id` = ?';
+      query = 'UPDATE orders SET status = $1, paidAt = NOW() WHERE id = $2';
       params = ['paid', orderId];
     } else if (action === 'confirmDelivery') {
       if (order.status !== 'paid') {
         return NextResponse.json({ error: 'يجب استلام الفلوس أولاً' }, { status: 400 });
       }
-      query = 'UPDATE `orders` SET `status` = ?, `deliveredAt` = NOW() WHERE `id` = ?';
+      query = 'UPDATE orders SET status = $1, deliveredAt = NOW() WHERE id = $2';
       params = ['delivered', orderId];
     } else if (action === 'delete') {
       if (order.status !== 'pending') {
         return NextResponse.json({ error: 'لا يمكن حذف طلب مقبول' }, { status: 400 });
       }
-      query = 'DELETE FROM `orders` WHERE `id` = ?';
+      query = 'DELETE FROM orders WHERE id = $1';
       params = [orderId];
     } else {
       return NextResponse.json({ error: 'Invalid action' }, { status: 400 });

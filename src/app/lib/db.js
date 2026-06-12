@@ -1,20 +1,16 @@
-import mysql from 'mysql2/promise';
+import { Pool } from 'pg';
 
 let pool;
 
-if (!global.mysqlPool) {
-  global.mysqlPool = mysql.createPool({
-    host: process.env.MYSQL_HOST || 'localhost',
-    port: Number(process.env.MYSQL_PORT || 3306),
-    user: process.env.MYSQL_USER,
-    password: process.env.MYSQL_PASSWORD,
-    database: process.env.MYSQL_DATABASE,
-    connectionLimit: 10,
-    waitForConnections: true,
-    queueLimit: 0,
+if (!global.pgPool) {
+  global.pgPool = new Pool({
+    connectionString: process.env.DATABASE_URL || 'postgresql://postgres:pjhXONdCwvyiEeMD@db.rgrdljoeuybaqfymanor.supabase.co:5432/postgres',
+    ssl: {
+      rejectUnauthorized: false
+    }
   });
 }
 
-pool = global.mysqlPool;
+pool = global.pgPool;
 
 export default pool;
