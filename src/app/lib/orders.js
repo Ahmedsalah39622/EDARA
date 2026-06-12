@@ -18,8 +18,26 @@ export async function getOrders() {
     const res = await fetch('/api/orders', { cache: 'no-store' });
     if (!res.ok) throw new Error('Failed to fetch');
     const data = await res.json();
-    ordersCache = data;
-    return data;
+    
+    // Map postgres lowercase keys to camelCase keys for React frontend
+    const mapped = (data || []).map(o => ({
+      id: o.id,
+      employeeName: o.employeename || o.employeeName,
+      department: o.department,
+      description: o.description,
+      totalPrice: o.totalprice || o.totalPrice,
+      amountPaying: o.amountpaying || o.amountPaying,
+      notes: o.notes,
+      status: o.status,
+      agentName: o.agentname || o.agentName,
+      createdAt: o.createdat || o.createdAt,
+      acceptedAt: o.acceptedat || o.acceptedAt,
+      paidAt: o.paidat || o.paidAt,
+      deliveredAt: o.deliveredat || o.deliveredAt,
+    }));
+
+    ordersCache = mapped;
+    return mapped;
   } catch (error) {
     console.error('Error in getOrders:', error);
     return ordersCache; // fallback to cache
