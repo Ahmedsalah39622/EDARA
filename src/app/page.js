@@ -34,7 +34,7 @@ function StatusBadge({ status }) {
 }
 
 // Single order card
-function OrderCard({ order, onDelete }) {
+function OrderCard({ order, onDelete, isOwnOrder = false }) {
   return (
     <div className={`order-card order-card--${order.status}`}>
       {order.status === 'pending' && onDelete && (
@@ -62,12 +62,16 @@ function OrderCard({ order, onDelete }) {
       )}
 
       <div className="order-card__meta">
-        <div className="order-card__price">
-          السعر: <span className="order-card__price-value">{order.totalPrice} ج.م</span>
-        </div>
-        <div className="order-card__price">
-          هيدفع: <span className="order-card__price-value">{order.amountPaying} ج.م</span>
-        </div>
+        {isOwnOrder && (
+          <>
+            <div className="order-card__price">
+              السعر: <span className="order-card__price-value">{order.totalPrice} ج.م</span>
+            </div>
+            <div className="order-card__price">
+              هيدفع: <span className="order-card__price-value">{order.amountPaying} ج.م</span>
+            </div>
+          </>
+        )}
         <div className="order-card__time">⏰ {timeAgo(order.createdAt)}</div>
       </div>
 
@@ -346,6 +350,7 @@ export default function EmployeePage() {
               key={order.id}
               order={order}
               onDelete={order.status === 'pending' ? handleDelete : null}
+              isOwnOrder={true}
             />
           ))}
         </div>
