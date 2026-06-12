@@ -201,13 +201,13 @@ export default function EmployeePage() {
     }
   };
 
-  // Filter and sort
-  const myOrders = orders.filter(o =>
-    formData.employeeName.trim() &&
+  // Filter and sort safely
+  const myOrders = (orders || []).filter(o =>
+    o && o.employeeName && formData.employeeName &&
     o.employeeName.trim().toLowerCase() === formData.employeeName.trim().toLowerCase()
   );
-  const otherOrders = orders.filter(o =>
-    !formData.employeeName.trim() ||
+  const otherOrders = (orders || []).filter(o =>
+    !o || !o.employeeName || !formData.employeeName ||
     o.employeeName.trim().toLowerCase() !== formData.employeeName.trim().toLowerCase()
   );
 
